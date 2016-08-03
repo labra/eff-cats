@@ -5,7 +5,6 @@ import cats.data._
 import cats.implicits._
 import org.specs2.{ScalaCheck, Specification}
 import org.atnos.eff.all._
-import org.atnos.eff.member._
 import interpret._
 import syntax.all._
 import org.scalacheck._
@@ -42,7 +41,7 @@ class MemberSpec(implicit ee: ExecutionEnv) extends Specification with ScalaChec
 
     type S = Future |: Eval |: Option |: NoEffect
 
-     def run[R :_eval, U](e: Eff[R, Int])(implicit m: Member.Aux[Future, R, U]): Eff[U, Int] = {
+     def run[R, U](e: Eff[R, Int])(implicit m: Member.Aux[Future, R, U], e1: Eval |= U): Eff[U, Int] = {
       translate(e) { new Translate[Future, U] {
         def apply[X](fx: Future[X]): Eff[U, X] =
           delay(fx.value.get.get)
@@ -56,7 +55,7 @@ class MemberSpec(implicit ee: ExecutionEnv) extends Specification with ScalaChec
 
     type S = Future |: Eval |: Option |: NoEffect
 
-    def run[R :_option, U](e: Eff[R, Int])(implicit m: Member.Aux[Future, R, U]): Eff[U, Int] = {
+    def run[R, U](e: Eff[R, Int])(implicit m: Member.Aux[Future, R, U], o: Option |= U): Eff[U, Int] = {
       translate(e) { new Translate[Future, U] {
         def apply[X](fx: Future[X]): Eff[U, X] =
           option.some(fx.value.get.get)
@@ -70,7 +69,7 @@ class MemberSpec(implicit ee: ExecutionEnv) extends Specification with ScalaChec
 
     type S = Option |: Future |: Eval |: NoEffect
 
-    def run[R :_option, U](e: Eff[R, Int])(implicit m: Member.Aux[Future, R, U]): Eff[U, Int] = {
+    def run[R, U](e: Eff[R, Int])(implicit m: Member.Aux[Future, R, U], o: Option |= U): Eff[U, Int] = {
       translate(e) { new Translate[Future, U] {
         def apply[X](fx: Future[X]): Eff[U, X] =
           option.some(fx.value.get.get)
@@ -84,7 +83,7 @@ class MemberSpec(implicit ee: ExecutionEnv) extends Specification with ScalaChec
 
     type S = Option |: Option |: Future |: Eval |: NoEffect
 
-    def run[R :_option, U](e: Eff[R, Int])(implicit m: Member.Aux[Option, R, U]): Eff[U, Int] = {
+    def run[R, U](e: Eff[R, Int])(implicit m: Member.Aux[Option, R, U], o: Option |= U): Eff[U, Int] = {
       translate(e) { new Translate[Option, U] {
         def apply[X](fx: Option[X]): Eff[U, X] =
           send(fx)
@@ -100,16 +99,16 @@ class MemberSpec(implicit ee: ExecutionEnv) extends Specification with ScalaChec
   type WriterString[A] = Writer[String, A]
   type ReaderInt[A] = Reader[Int, A]
 
-  type S = WriterString |: ReaderInt |: Eval |: NoEffect
+  type S = In3[WriterString, ReaderInt, Eval]
 
   def writerMember =
-    Member.aux[WriterString, S, ReaderInt |: Eval |: NoEffect]
+    Member.Member3L[WriterString, ReaderInt, Eval]
 
   def readerMember =
-    Member.aux[ReaderInt, S, WriterString |: Eval |: NoEffect]
+    Member.Member3M[WriterString, ReaderInt, Eval]
 
-  def evalMember =
-    Member.aux[Eval, S, WriterString |: ReaderInt |: NoEffect]
+  def evalMember: Member.Aux[Eval, S, In2[WriterString, ReaderInt]] =
+    Member.Member3R[WriterString, ReaderInt, Eval]
 
   val read1 = Reader((i: Int) => "hey")
   val write1 = Writer[String, String]("hey", "hey")
