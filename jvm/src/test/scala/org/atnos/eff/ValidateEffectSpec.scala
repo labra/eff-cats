@@ -7,6 +7,8 @@ import cats.syntax.all._
 import org.atnos.eff.all._
 import org.atnos.eff.syntax.all._
 import org.specs2.{ScalaCheck, Specification}
+import org.scalacheck.Gen
+
 
 class ValidateEffectSpec extends Specification with ScalaCheck { def is = s2"""
 
@@ -14,6 +16,8 @@ class ValidateEffectSpec extends Specification with ScalaCheck { def is = s2"""
  run the validate effect with nothing        $validateKo
 
  run is stack safe with Validate  $stacksafeRun
+
+ wrong values can be caught and transformed to a correct value $wrongToCorrect
 
 """
 
@@ -53,6 +57,31 @@ class ValidateEffectSpec extends Specification with ScalaCheck { def is = s2"""
 
     action.runNel.run ==== NonEmptyList.fromList(list.map(_.toString)).map(Xor.left).getOrElse(Xor.right(Nil))
   }
+  
+  def wrongToCorrect = prop { i: Int =>
+    case class TooBig(value: Int)
+    type D[A] = Validate[TooBig, A]
+    type E = D |: NoEffect
+
+    val i = 7
+
+    val value: Eff[E, Int] =
+	  validateValue(i > 5, i, TooBig(i))
+
+    val action: Eff[E, Int] = catchWrong[E, TooBig, Int](value) { case OneAnd(TooBig(k),_) =>
+	  validateValue(k < 10, k, TooBig(k))
+    }
+
+    val expected: NonEmptyList[TooBig] Xor Int =
+      if (i < 10) Xor.right(i) else Xor.left(NonEmptyList(TooBig(i)))
+
+    val actual: NonEmptyList[TooBig] Xor Int =
+      action.runNel.run
+
+    actual == expected
+
+  }.setGen(Gen.oneOf(14, 12))
+
 
 }
 

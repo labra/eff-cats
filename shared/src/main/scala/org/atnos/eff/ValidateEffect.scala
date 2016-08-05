@@ -80,6 +80,18 @@ trait ValidateInterpretation extends ValidateCreation {
     interpretState1[R, U, Validate[E, ?], A, L Xor A]((a: A) => Xor.right[L, A](a))(recurse)(r)
   }
 
+  /** catch and handle possible wrong values */
+  def catchWrong[R, E, A](r: Eff[R, A])(handle: NonEmptyList[E] => Eff[R, A])(implicit member: (Validate[E, ?]) <= R): Eff[R, A] = {
+    val recurse = new Recurse[(Validate[E,?]), R, A] {
+      def apply[X](m: Validate[E,X]) = m match {
+          case Correct() => ??? // Left()
+          case Wrong(e) => ??? // Right(handle(e))
+        } 
+    }
+
+    intercept1[R, (Validate[E,?]), A, A]((a: A) => a)(recurse)(r)
+  }
+  
 }
 
 object ValidateInterpretation extends ValidateInterpretation
